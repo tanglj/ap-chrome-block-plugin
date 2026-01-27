@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>TBlock</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <div class="container">
+    <h1>TBlock</h1>
+    
+    <div class="section quick-actions-section">
+      <div class="quick-actions">
+        <button id="addCurrentPage" class="quick-btn">添加当前页面</button>
+        <button id="addCurrentSite" class="quick-btn">添加当前网站</button>
+      </div>
+    </div>
+
+    <div class="section input-url-section">
+      <div class="input-wrapper">
+        <div class="input-section">
+          <input type="text" id="websiteInput" placeholder="输入网站域名 (例如: example.com)">
+          <button id="addButton">添加</button>
+        </div>
+        <div class="mode-section">
+          <label class="mode-label">屏蔽模式：</label>
+          <div class="mode-options">
+            <label class="mode-option">
+              <input type="radio" name="blockMode" value="domain" checked>
+              <span>整个域名</span>
+            </label>
+            <label class="mode-option">
+              <input type="radio" name="blockMode" value="page">
+              <span>特定页面</span>
+            </label>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="section blocked-list-section">
+      <h3 class="section-title">已屏蔽的网站</h3>
+      <ul id="blockedWebsites"></ul>
+    </div>
+
+    <div class="message" id="message"></div>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>
