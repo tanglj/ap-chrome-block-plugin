@@ -5,6 +5,7 @@ chrome.runtime.onInstalled.addListener((details) => {
     chrome.storage.local.get(["blockedWebsites"], (result) => {
       if (result.blockedWebsites) {
         updateBlockRules(result.blockedWebsites);
+        updateAllTabsIcons();
       }
     });
   }
@@ -13,6 +14,17 @@ chrome.runtime.onInstalled.addListener((details) => {
 chrome.storage.onChanged.addListener((changes, namespace) => {
   if (namespace === "local" && changes.blockedWebsites) {
     updateBlockRules(changes.blockedWebsites.newValue);
+    updateAllTabsIcons();
+  }
+});
+
+chrome.tabs.onActivated.addListener((activeInfo) => {
+  updateTabIcon(activeInfo.tabId);
+});
+
+chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
+  if (changeInfo.status === 'complete' && tab.url) {
+    updateTabIcon(tabId);
   }
 });
 
@@ -102,4 +114,98 @@ async function updateBlockRules(blockedWebsites) {
   } catch (error) {
     console.error('Error in updateBlockRules:', error);
   }
+}
+
+function isUrlBlocked(url, blockedWebsites) {
+  if (!url || !blockedWebsites || blockedWebsites.length === 0) {
+    return false;
+  }
+
+  try {
+    const urlObj = new URL(url);
+    const currentDomain = urlObj.hostname.replace(/^www\./, '');
+    const currentPath = urlObj.pathname + urlObj.search + urlObj.hash;
+
+    for (const item of blockedWebsites) {
+      if (item.mode === 'domain' && item.domain === currentDomain) {
+        return true;
+      } else if (item.mode === 'page') {
+        const blockedPath = extractPathFromUrl(item.original);
+        if (item.domain === currentDomain && blockedPath === currentPath) {
+          return true;
+        }
+      }
+    }
+  } catch (e) {
+    console.error('Error parsing URL:', e);
+  }
+
+  return false;
+}
+
+function updateTabIcon(tabId) {
+  chrome.tabs.get(tabId, (tab) => {
+    if (chrome.runtime.lastError || !tab || !tab.url) {
+      return;
+    }
+
+    chrome.storage.local.get(['blockedWebsites'], (result) => {
+      const blockedWebsites = result.blockedWebsites || [];
+      const isBlocked = isUrlBlocked(tab.url, blockedWebsites);
+
+      if (isBlocked) {
+        chrome.action.setBadgeText({
+          text: 'B',
+          tabId: tabId
+        });
+        chrome.action.setBadgeBackgroundColor({
+          color: '#dc3545',
+          tabId: tabId
+        });
+        chrome.action.setBadgeTextColor({
+          color: '#ffffff',
+          tabId: tabId
+        });
+      } else {
+        chrome.action.setBadgeText({
+          text: '',
+          tabId: tabId
+        });
+      }
+    });
+  });
+}
+
+function updateAllTabsIcons() {
+  chrome.tabs.query({}, (tabs) => {
+    chrome.storage.local.get(['blockedWebsites'], (result) => {
+      const blockedWebsites = result.blockedWebsites || [];
+
+      tabs.forEach(tab => {
+        if (tab.url && !tab.url.startsWith('chrome://') && !tab.url.startsWith('chrome-extension://')) {
+          const isBlocked = isUrlBlocked(tab.url, blockedWebsites);
+
+          if (isBlocked) {
+            chrome.action.setBadgeText({
+              text: 'B',
+              tabId: tab.id
+            });
+            chrome.action.setBadgeBackgroundColor({
+              color: '#dc3545',
+              tabId: tab.id
+            });
+            chrome.action.setBadgeTextColor({
+              color: '#ffffff',
+              tabId: tab.id
+            });
+          } else {
+            chrome.action.setBadgeText({
+              text: '',
+              tabId: tab.id
+            });
+          }
+        }
+      });
+    });
+  });
 }
