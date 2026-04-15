@@ -1,11 +1,16 @@
 chrome.runtime.onInstalled.addListener((details) => {
   if (details.reason === 'install') {
-    chrome.storage.local.set({ blockedWebsites: [] });
+    chrome.storage.local.set({ blockedWebsites: [], blockedElements: [] });
   } else if (details.reason === 'update') {
     chrome.storage.local.get(["blockedWebsites"], (result) => {
       if (result.blockedWebsites) {
         updateBlockRules(result.blockedWebsites);
         updateAllTabsIcons();
+      }
+    });
+    chrome.storage.local.get(["blockedElements"], (result) => {
+      if (!result.blockedElements) {
+        chrome.storage.local.set({ blockedElements: [] });
       }
     });
   }
@@ -209,3 +214,31 @@ function updateAllTabsIcons() {
     });
   });
 }
+
+chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+  if (request.action === 'addBlockRule') {
+    chrome.storage.local.get(['blockedElements'], (result) => {
+      let blockedElements = result.blockedElements || [];
+      
+      const existingIndex = blockedElements.findIndex(item => 
+        item.domain === request.domain && item.selector === request.selector
+      );
+      
+      if (existingIndex !== -1) {
+        sendResponse({ success: false, message: '该元素已在屏蔽列表中' });
+        return;
+      }
+      
+      blockedElements.push({
+        domain: request.domain,
+        selector: request.selector,
+        count: 1
+      });
+      
+      chrome.storage.local.set({ blockedElements }, () => {
+        sendResponse({ success: true });
+      });
+    });
+    return true;
+  }
+});

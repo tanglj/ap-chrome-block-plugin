@@ -10,13 +10,6 @@
   <div class="container">
     <h1>TBlock</h1>
     
-    <div class="section quick-actions-section">
-      <div class="quick-actions">
-        <button id="addCurrentPage" class="quick-btn">添加当前页面</button>
-        <button id="addCurrentSite" class="quick-btn">添加当前网站</button>
-      </div>
-    </div>
-
     <div class="section input-url-section">
       <div class="input-wrapper">
         <div class="input-section">
@@ -39,9 +32,17 @@
       </div>
     </div>
 
+    <div class="section quick-actions-section">
+      <div class="quick-actions">
+        <button id="addCurrentSite" class="quick-btn">添加当前网站</button>
+        <button id="addCurrentPage" class="quick-btn">添加当前页面</button>
+        <button id="selectElement" class="quick-btn">添加页面元素</button>
+      </div>
+    </div>
+
     <div class="section blocked-list-section">
-      <h3 class="section-title">已屏蔽的网站</h3>
-      <ul id="blockedWebsites"></ul>
+      <h3 class="section-title">已屏蔽</h3>
+      <ul id="blockedItems"></ul>
     </div>
 
     <div class="message" id="message"></div>

@@ -2,7 +2,8 @@ const websiteInput = document.getElementById('websiteInput');
 const addButton = document.getElementById('addButton');
 const addCurrentPageBtn = document.getElementById('addCurrentPage');
 const addCurrentSiteBtn = document.getElementById('addCurrentSite');
-const blockedWebsitesList = document.getElementById('blockedWebsites');
+const selectElementBtn = document.getElementById('selectElement');
+const blockedItemsList = document.getElementById('blockedItems');
 const message = document.getElementById('message');
 
 function showMessage(text, type) {
@@ -13,38 +14,78 @@ function showMessage(text, type) {
   }, 3000);
 }
 
-function loadBlockedWebsites() {
-  chrome.storage.local.get(['blockedWebsites'], (result) => {
+function loadBlockedItems() {
+  chrome.storage.local.get(['blockedWebsites', 'blockedElements'], (result) => {
     const blockedWebsites = result.blockedWebsites || [];
-    renderBlockedWebsites(blockedWebsites);
+    const blockedElements = result.blockedElements || [];
+    renderBlockedItems(blockedWebsites, blockedElements);
   });
 }
 
-function renderBlockedWebsites(blockedWebsites) {
-  blockedWebsitesList.innerHTML = '';
+function renderBlockedItems(blockedWebsites, blockedElements) {
+  blockedItemsList.innerHTML = '';
+  
+  getCurrentTabUrl((currentUrl) => {
+    if (!currentUrl) {
+      blockedItemsList.innerHTML = '<li class="empty-message">无法获取当前页面</li>';
+      return;
+    }
 
-  if (blockedWebsites.length === 0) {
-    blockedWebsitesList.innerHTML = '<li class="empty-message">暂无屏蔽的网站</li>';
-    return;
-  }
+    const currentDomain = extractDomain(currentUrl);
+    const currentPath = new URL(currentUrl).pathname + new URL(currentUrl).search + new URL(currentUrl).hash;
+    let hasItems = false;
 
-  blockedWebsites.forEach((item, index) => {
-    const li = document.createElement('li');
-    const modeText = item.mode === 'domain' ? '整个域名' : '特定页面';
-    li.innerHTML = `
-      <div class="website-info">
-        <span class="domain">${item.domain}</span>
-        <span class="mode">${modeText}</span>
-      </div>
-      <button data-index="${index}">删除</button>
-    `;
-    blockedWebsitesList.appendChild(li);
-  });
+    // 显示屏蔽的网站
+    blockedWebsites.forEach((item, index) => {
+      if (item.domain === currentDomain) {
+        hasItems = true;
+        const li = document.createElement('li');
+        const modeText = item.mode === 'domain' ? '整个域名' : '特定页面';
+        const typeClass = item.mode === 'domain' ? 'type-domain' : 'type-page';
+        
+        li.innerHTML = `
+          <div class="item-info">
+            <span class="item-type ${typeClass}">${modeText}</span>
+            <span class="item-domain">${item.domain}</span>
+            ${item.mode === 'page' ? `<span class="item-path">${item.original}</span>` : ''}
+          </div>
+          <button data-type="website" data-index="${index}">删除</button>
+        `;
+        blockedItemsList.appendChild(li);
+      }
+    });
 
-  document.querySelectorAll('#blockedWebsites button').forEach(button => {
-    button.addEventListener('click', (e) => {
-      const index = parseInt(e.target.dataset.index);
-      removeWebsite(index);
+    // 显示屏蔽的元素
+    blockedElements.forEach((item, index) => {
+      if (item.domain === currentDomain) {
+        hasItems = true;
+        const li = document.createElement('li');
+        
+        li.innerHTML = `
+          <div class="item-info">
+            <span class="item-type type-element">元素</span>
+            <span class="item-selector">${item.selector}</span>
+          </div>
+          <button data-type="element" data-index="${index}">删除</button>
+        `;
+        blockedItemsList.appendChild(li);
+      }
+    });
+
+    if (!hasItems) {
+      blockedItemsList.innerHTML = '<li class="empty-message">当前页面无屏蔽内容</li>';
+    }
+
+    document.querySelectorAll('#blockedItems button').forEach(button => {
+      button.addEventListener('click', (e) => {
+        const type = e.target.dataset.type;
+        const index = parseInt(e.target.dataset.index);
+        if (type === 'website') {
+          removeWebsite(index);
+        } else if (type === 'element') {
+          removeBlockedElement(index);
+        }
+      });
     });
   });
 }
@@ -101,7 +142,7 @@ function addWebsite() {
     chrome.storage.local.set({ blockedWebsites }, () => {
       showMessage('网站已添加到屏蔽列表', 'success');
       websiteInput.value = '';
-      renderBlockedWebsites(blockedWebsites);
+      loadBlockedItems();
     });
   });
 }
@@ -114,7 +155,7 @@ function removeWebsite(index) {
     blockedWebsites.splice(index, 1);
     chrome.storage.local.set({ blockedWebsites }, () => {
       showMessage(`已移除网站: ${removedItem.domain}`, 'success');
-      renderBlockedWebsites(blockedWebsites);
+      loadBlockedItems();
     });
   });
 }
@@ -159,7 +200,7 @@ function addCurrentPage() {
 
       chrome.storage.local.set({ blockedWebsites }, () => {
         showMessage('当前页面已添加到屏蔽列表', 'success');
-        renderBlockedWebsites(blockedWebsites);
+        loadBlockedItems();
       });
     });
   });
@@ -194,7 +235,7 @@ function addCurrentSite() {
 
       chrome.storage.local.set({ blockedWebsites }, () => {
         showMessage('当前网站已添加到屏蔽列表', 'success');
-        renderBlockedWebsites(blockedWebsites);
+        loadBlockedItems();
       });
     });
   });
@@ -203,6 +244,7 @@ function addCurrentSite() {
 addButton.addEventListener('click', addWebsite);
 addCurrentPageBtn.addEventListener('click', addCurrentPage);
 addCurrentSiteBtn.addEventListener('click', addCurrentSite);
+selectElementBtn.addEventListener('click', startElementSelection);
 
 websiteInput.addEventListener('keypress', (e) => {
   if (e.key === 'Enter') {
@@ -222,6 +264,86 @@ document.querySelectorAll('input[name="blockMode"]').forEach(radio => {
 });
 
 document.addEventListener('DOMContentLoaded', () => {
-  loadBlockedWebsites();
+  loadBlockedItems();
   updatePlaceholder();
 });
+
+function startElementSelection() {
+  getCurrentTabUrl((url) => {
+    if (!url) {
+      showMessage('无法获取当前页面URL', 'error');
+      return;
+    }
+
+    if (url.startsWith('chrome://') || url.startsWith('chrome-extension://')) {
+      showMessage('无法在系统页面选择元素', 'error');
+      return;
+    }
+
+    chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+      if (tabs[0] && tabs[0].id) {
+        const tabId = tabs[0].id;
+        
+        // 检查页面是否完全加载
+        if (tabs[0].status !== 'complete') {
+          showMessage('页面加载中，请稍后再试', 'error');
+          return;
+        }
+
+        // 尝试发送消息到content script
+        chrome.tabs.sendMessage(tabId, { action: 'startSelectMode' }, (response) => {
+          if (chrome.runtime.lastError) {
+            // content script未响应，尝试重新注入
+            chrome.scripting.executeScript({
+              target: { tabId: tabId },
+              files: ['content.js']
+            }, () => {
+              if (chrome.runtime.lastError) {
+                showMessage('无法启动元素选择模式: ' + chrome.runtime.lastError.message, 'error');
+              } else {
+                // 重新注入后再次尝试发送消息
+                setTimeout(() => {
+                  chrome.tabs.sendMessage(tabId, { action: 'startSelectMode' }, (response) => {
+                    if (chrome.runtime.lastError) {
+                      showMessage('无法启动元素选择模式', 'error');
+                    } else {
+                      window.close();
+                    }
+                  });
+                }, 100);
+              }
+            });
+          } else {
+            window.close();
+          }
+        });
+      }
+    });
+  });
+}
+
+function removeBlockedElement(index) {
+  chrome.storage.local.get(['blockedElements'], (result) => {
+    let blockedElements = result.blockedElements || [];
+    const removedItem = blockedElements[index];
+    
+    blockedElements.splice(index, 1);
+    chrome.storage.local.set({ blockedElements }, () => {
+      showMessage(`已移除屏蔽元素: ${removedItem.selector}`, 'success');
+      loadBlockedItems();
+      
+      // 通知content script更新屏蔽规则
+      getCurrentTabUrl((url) => {
+        const currentDomain = extractDomain(url);
+        chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+          if (tabs[0] && tabs[0].id) {
+            chrome.tabs.sendMessage(tabs[0].id, { 
+              action: 'applyBlockRules',
+              selectors: blockedElements.filter(item => item.domain === currentDomain).map(item => item.selector)
+            });
+          }
+        });
+      });
+    });
+  });
+}

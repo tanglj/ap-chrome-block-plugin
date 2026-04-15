@@ -36,9 +36,9 @@ h1 {
   font-size: 14px;
   font-weight: 600;
   color: #555;
-  margin-bottom: 10px;
-  padding-bottom: 8px;
-  border-bottom: 2px solid #e0e0e0;
+  margin: 0;
+  padding: 0;
+  border: none;
 }
 
 .quick-actions {
@@ -215,6 +215,218 @@ h1 {
   overflow-y: auto;
 }
 
+#blockedElements {
+  list-style: none;
+  max-height: 250px;
+  overflow-y: auto;
+}
+
+#blockedElements li {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 12px;
+  background: #f8f9fa;
+  border-radius: 6px;
+  margin-bottom: 6px;
+  transition: background 0.2s;
+}
+
+#blockedElements li:hover {
+  background: #e9ecef;
+}
+
+.element-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.element-info .selector {
+  font-size: 12px;
+  font-weight: 500;
+  color: #333;
+  word-break: break-all;
+  font-family: 'Courier New', monospace;
+}
+
+.element-info .element-count {
+  font-size: 11px;
+  color: #888;
+  background: #e9ecef;
+  padding: 2px 6px;
+  border-radius: 10px;
+  width: fit-content;
+}
+
+#blockedElements li button {
+  padding: 5px 10px;
+  background: #dc3545;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 500;
+  cursor: pointer;
+  margin-left: 8px;
+  transition: background 0.2s;
+}
+
+#blockedElements li button:hover {
+  background: #c82333;
+}
+
+#blockedItems {
+  list-style: none;
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+#blockedItems li {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 12px;
+  background: #f8f9fa;
+  border-radius: 6px;
+  margin-bottom: 6px;
+  transition: background 0.2s;
+}
+
+#blockedItems li:hover {
+  background: #e9ecef;
+}
+
+.item-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.item-type {
+  font-size: 11px;
+  font-weight: 600;
+  color: white;
+  padding: 2px 8px;
+  border-radius: 10px;
+  width: fit-content;
+}
+
+.item-type.type-domain {
+  background: #667eea;
+}
+
+.item-type.type-page {
+  background: #764ba2;
+}
+
+.item-type.type-element {
+  background: #28a745;
+}
+
+.item-domain {
+  font-size: 13px;
+  font-weight: 500;
+  color: #333;
+  word-break: break-all;
+}
+
+.item-path {
+  font-size: 11px;
+  color: #666;
+  word-break: break-all;
+  font-family: 'Courier New', monospace;
+}
+
+.item-selector {
+  font-size: 12px;
+  font-weight: 500;
+  color: #333;
+  word-break: break-all;
+  font-family: 'Courier New', monospace;
+}
+
+#blockedItems li button {
+  padding: 5px 10px;
+  background: #dc3545;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 500;
+  cursor: pointer;
+  margin-left: 8px;
+  transition: background 0.2s;
+}
+
+#blockedItems li button:hover {
+  background: #c82333;
+}
+
+#blockedElements {
+  list-style: none;
+  max-height: 250px;
+  overflow-y: auto;
+}
+
+#blockedElements li {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 12px;
+  background: #f8f9fa;
+  border-radius: 6px;
+  margin-bottom: 6px;
+  transition: background 0.2s;
+}
+
+#blockedElements li:hover {
+  background: #e9ecef;
+}
+
+.element-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.element-info .selector {
+  font-size: 12px;
+  font-weight: 500;
+  color: #333;
+  word-break: break-all;
+  font-family: 'Courier New', monospace;
+}
+
+.element-info .element-count {
+  font-size: 11px;
+  color: #888;
+  background: #e9ecef;
+  padding: 2px 6px;
+  border-radius: 10px;
+  width: fit-content;
+}
+
+#blockedElements li button {
+  padding: 5px 10px;
+  background: #dc3545;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 500;
+  cursor: pointer;
+  margin-left: 8px;
+  transition: background 0.2s;
+}
+
+#blockedElements li button:hover {
+  background: #c82333;
+}
+
 .message {
   margin-top: 15px;
   padding: 10px;
@@ -243,4 +455,92 @@ h1 {
   color: #999;
   font-size: 14px;
   padding: 20px;
+}
+
+#blockedItems {
+  list-style: none;
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+#blockedItems li {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 12px;
+  background: #f8f9fa;
+  border-radius: 6px;
+  margin-bottom: 6px;
+  transition: background 0.2s;
+}
+
+#blockedItems li:hover {
+  background: #e9ecef;
+}
+
+.item-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.item-type {
+  font-size: 11px;
+  font-weight: 600;
+  color: white;
+  padding: 2px 8px;
+  border-radius: 10px;
+  width: fit-content;
+}
+
+.item-type.type-domain {
+  background: #667eea;
+}
+
+.item-type.type-page {
+  background: #764ba2;
+}
+
+.item-type.type-element {
+  background: #28a745;
+}
+
+.item-domain {
+  font-size: 13px;
+  font-weight: 500;
+  color: #333;
+  word-break: break-all;
+}
+
+.item-path {
+  font-size: 11px;
+  color: #666;
+  word-break: break-all;
+  font-family: 'Courier New', monospace;
+}
+
+.item-selector {
+  font-size: 12px;
+  font-weight: 500;
+  color: #333;
+  word-break: break-all;
+  font-family: 'Courier New', monospace;
+}
+
+#blockedItems li button {
+  padding: 5px 10px;
+  background: #dc3545;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 500;
+  cursor: pointer;
+  margin-left: 8px;
+  transition: background 0.2s;
+}
+
+#blockedItems li button:hover {
+  background: #c82333;
 }
