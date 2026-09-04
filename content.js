@@ -2,6 +2,8 @@ let isSelectMode = false;
 let currentHighlightElement = null;
 let blockedSelectors = [];
 let escapeHandler = null;
+let blockObserver = null;
+let applyRulesTimer = null;
 
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   if (request.action === 'startSelectMode') {
@@ -25,9 +27,9 @@ function startSelectMode() {
   console.log('Starting select mode');
   isSelectMode = true;
   document.body.style.cursor = 'crosshair';
-  document.addEventListener('mouseover', handleMouseOver);
-  document.addEventListener('mouseout', handleMouseOut);
-  document.addEventListener('click', handleClick);
+  document.addEventListener('mouseover', handleMouseOver, true);
+  document.addEventListener('mouseout', handleMouseOut, true);
+  document.addEventListener('click', handleClick, true);
   
   showSelectModeTip();
 }
@@ -38,9 +40,9 @@ function stopSelectMode() {
   console.log('Stopping select mode');
   isSelectMode = false;
   document.body.style.cursor = '';
-  document.removeEventListener('mouseover', handleMouseOver);
-  document.removeEventListener('mouseout', handleMouseOut);
-  document.removeEventListener('click', handleClick);
+  document.removeEventListener('mouseover', handleMouseOver, true);
+  document.removeEventListener('mouseout', handleMouseOut, true);
+  document.removeEventListener('click', handleClick, true);
   
   // 移除ESC键监听器（同时移除document和window上的监听器）
   if (escapeHandler) {
@@ -96,14 +98,25 @@ function handleClick(e) {
   // 获取域名而不是完整URL
   const domain = window.location.hostname.replace(/^www\./, '');
   
-  chrome.runtime.sendMessage({
+  const rule = {
     action: 'addBlockRule',
     selector: selector,
     domain: domain
-  }, (response) => {
-    if (response && response.success) {
+  };
+
+  chrome.runtime.sendMessage(rule, (response) => {
+    if (!chrome.runtime.lastError && response && response.success) {
       showSuccessMessage(`已屏蔽元素: ${selector}`);
       applyBlockRules();
+      return;
+    }
+
+    // Service workers can be restarting while a content script is active.
+    // Persist the rule locally so a transient messaging failure does not lose it.
+    if (chrome.runtime.lastError) {
+      saveBlockRuleLocally(rule);
+    } else if (response && response.message) {
+      showSuccessMessage(response.message);
     }
   });
   
@@ -112,13 +125,13 @@ function handleClick(e) {
 
 function getSelector(element) {
   if (element.id) {
-    return `#${element.id}`;
+    return `#${CSS.escape(element.id)}`;
   }
   
   if (element.className && typeof element.className === 'string') {
     const classes = element.className.split(' ').filter(c => c.trim());
     if (classes.length > 0) {
-      return `.${classes.join('.')}`;
+      return classes.map(className => `.${CSS.escape(className)}`).join('');
     }
   }
   
@@ -129,7 +142,7 @@ function getSelector(element) {
     let selector = current.tagName.toLowerCase();
     
     if (current.id) {
-      selector += `#${current.id}`;
+      selector += `#${CSS.escape(current.id)}`;
       path.unshift(selector);
       break;
     }
@@ -137,7 +150,7 @@ function getSelector(element) {
     if (current.className && typeof current.className === 'string') {
       const classes = current.className.split(' ').filter(c => c.trim());
       if (classes.length > 0) {
-        selector += `.${classes[0]}`;
+        selector += `.${CSS.escape(classes[0])}`;
       }
     }
     
@@ -151,7 +164,30 @@ function getSelector(element) {
     current = current.parentNode;
   }
   
-  return path.join(' > ');
+  return path.join(' > ') || 'body';
+}
+
+function saveBlockRuleLocally(rule) {
+  chrome.storage.local.get(['blockedElements'], (result) => {
+    const blockedElements = result.blockedElements || [];
+    const exists = blockedElements.some(item =>
+      item.domain === rule.domain && item.selector === rule.selector
+    );
+    if (exists) {
+      showSuccessMessage('该元素已在屏蔽列表中');
+      return;
+    }
+
+    blockedElements.push({ domain: rule.domain, selector: rule.selector, count: 1 });
+    chrome.storage.local.set({ blockedElements }, () => {
+      if (chrome.runtime.lastError) {
+        console.error('Error saving block rule:', chrome.runtime.lastError.message);
+        return;
+      }
+      showSuccessMessage(`已屏蔽元素: ${rule.selector}`);
+      applyBlockRules();
+    });
+  });
 }
 
 function applyBlockRules() {
@@ -173,6 +209,32 @@ function applyBlockRules() {
       }
     });
   });
+}
+
+function scheduleApplyBlockRules() {
+  if (applyRulesTimer !== null) {
+    clearTimeout(applyRulesTimer);
+  }
+
+  applyRulesTimer = setTimeout(() => {
+    applyRulesTimer = null;
+    applyBlockRules();
+  }, 50);
+}
+
+function observeDynamicContent() {
+  if (blockObserver || !document.body || typeof MutationObserver === 'undefined') {
+    return;
+  }
+
+  blockObserver = new MutationObserver((mutations) => {
+    // Only rescan when nodes were added. Style changes made by us do not retrigger this observer.
+    if (mutations.some(mutation => mutation.addedNodes.length > 0)) {
+      scheduleApplyBlockRules();
+    }
+  });
+
+  blockObserver.observe(document.body, { childList: true, subtree: true });
 }
 
 function showSelectModeTip() {
@@ -252,7 +314,11 @@ function showSuccessMessage(message) {
 
 // 页面加载时应用已有的屏蔽规则
 if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', applyBlockRules);
+  document.addEventListener('DOMContentLoaded', () => {
+    applyBlockRules();
+    observeDynamicContent();
+  }, { once: true });
 } else {
   applyBlockRules();
+  observeDynamicContent();
 }

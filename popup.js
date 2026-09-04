@@ -340,6 +340,10 @@ function removeBlockedElement(index) {
             chrome.tabs.sendMessage(tabs[0].id, { 
               action: 'applyBlockRules',
               selectors: blockedElements.filter(item => item.domain === currentDomain).map(item => item.selector)
+            }, () => {
+              // The active tab may not have a content script (for example a system page).
+              // Read the error so Chrome does not report an unchecked runtime.lastError.
+              void chrome.runtime.lastError;
             });
           }
         });
