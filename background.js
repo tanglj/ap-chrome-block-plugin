@@ -11,15 +11,25 @@ chrome.runtime.onInstalled.addListener((details) => {
     chrome.storage.local.get(["blockedElements"], (result) => {
       if (!result.blockedElements) {
         chrome.storage.local.set({ blockedElements: [] });
+      } else {
+        updateAllTabsElementStyles(result.blockedElements);
       }
     });
   }
 });
 
 chrome.storage.onChanged.addListener((changes, namespace) => {
-  if (namespace === "local" && changes.blockedWebsites) {
+  if (namespace !== "local") {
+    return;
+  }
+
+  if (changes.blockedWebsites) {
     updateBlockRules(changes.blockedWebsites.newValue);
     updateAllTabsIcons();
+  }
+
+  if (changes.blockedElements) {
+    updateAllTabsElementStyles(changes.blockedElements.newValue || []);
   }
 });
 
@@ -28,10 +38,88 @@ chrome.tabs.onActivated.addListener((activeInfo) => {
 });
 
 chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
+  if (changeInfo.status === 'loading' && tab.url) {
+    injectElementStyles(tabId, tab.url);
+  }
+
   if (changeInfo.status === 'complete' && tab.url) {
     updateTabIcon(tabId);
   }
 });
+
+const injectedElementCss = new Map();
+
+function buildElementCss(blockedElements, url) {
+  const domain = extractDomain(url);
+  const selectors = blockedElements
+    .filter(item => item.domain === domain && item.selector)
+    .map(item => item.selector.trim())
+    .filter(Boolean);
+
+  if (selectors.length === 0) {
+    return '';
+  }
+
+  return `${selectors.join(',\n')} { display: none !important; }`;
+}
+
+function injectElementStyles(tabId, url, blockedElements) {
+  if (!url || url.startsWith('chrome://') || url.startsWith('chrome-extension://')) {
+    return;
+  }
+
+  const apply = (rules) => {
+    const css = buildElementCss(rules, url);
+    const previousCss = injectedElementCss.get(tabId);
+    const insert = () => {
+      if (!css) {
+        injectedElementCss.delete(tabId);
+        return;
+      }
+
+      console.log('[TBlock] 元素 CSS 注入开始', { tabId, url, css });
+      chrome.scripting.insertCSS({ target: { tabId }, css }, () => {
+        if (chrome.runtime.lastError) {
+          console.warn('[TBlock] 元素 CSS 注入失败', {
+            tabId,
+            url,
+            error: chrome.runtime.lastError.message
+          });
+          return;
+        }
+        console.log('[TBlock] 元素 CSS 注入成功', { tabId, url });
+        injectedElementCss.set(tabId, css);
+      });
+    };
+
+    if (previousCss) {
+      chrome.scripting.removeCSS({ target: { tabId }, css: previousCss }, () => {
+        void chrome.runtime.lastError;
+        insert();
+      });
+    } else {
+      insert();
+    }
+  };
+
+  if (blockedElements) {
+    apply(blockedElements);
+  } else {
+    chrome.storage.local.get(['blockedElements'], result => {
+      apply(result.blockedElements || []);
+    });
+  }
+}
+
+function updateAllTabsElementStyles(blockedElements) {
+  chrome.tabs.query({}, tabs => {
+    tabs.forEach(tab => {
+      if (tab.id && tab.url) {
+        injectElementStyles(tab.id, tab.url, blockedElements);
+      }
+    });
+  });
+}
 
 function extractDomain(url) {
   try {
