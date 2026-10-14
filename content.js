@@ -4,8 +4,43 @@ let blockedSelectors = [];
 let escapeHandler = null;
 let blockObserver = null;
 let applyRulesTimer = null;
+let contextTornDown = false;
+
+// 调用任何 chrome.* API 前检查扩展上下文是否仍然有效。
+// 扩展被重新加载/更新/停用后，残留的旧内容脚本中 chrome.runtime.id 会消失，
+// 此时调用 chrome.storage 等会抛出 "Extension context invalidated."
+function isExtensionContextAlive() {
+  try {
+    return typeof chrome !== 'undefined' && !!chrome.runtime && !!chrome.runtime.id;
+  } catch (e) {
+    return false;
+  }
+}
+
+// 上下文失效后彻底停掉旧脚本：断开 MutationObserver、清除定时器、退出选择模式，
+// 避免页面后续 DOM 变化再次触发对已失效 API 的调用。
+function teardownStaleScript() {
+  if (contextTornDown) return;
+  contextTornDown = true;
+
+  if (applyRulesTimer !== null) {
+    clearTimeout(applyRulesTimer);
+    applyRulesTimer = null;
+  }
+  if (blockObserver) {
+    blockObserver.disconnect();
+    blockObserver = null;
+  }
+  stopSelectMode();
+
+  console.debug('[TBlock] 扩展已重新加载或停用，旧内容脚本已停止工作，刷新页面即可恢复。');
+}
 
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+  if (!isExtensionContextAlive()) {
+    teardownStaleScript();
+    return false;
+  }
   if (request.action === 'startSelectMode') {
     startSelectMode();
     sendResponse({ success: true });
@@ -104,21 +139,27 @@ function handleClick(e) {
     domain: domain
   };
 
-  chrome.runtime.sendMessage(rule, (response) => {
-    if (!chrome.runtime.lastError && response && response.success) {
-      showSuccessMessage(`已屏蔽元素: ${selector}`);
-      applyBlockRules();
-      return;
-    }
+  try {
+    chrome.runtime.sendMessage(rule, (response) => {
+      if (!chrome.runtime.lastError && response && response.success) {
+        showSuccessMessage(`已屏蔽元素: ${selector}`);
+        applyBlockRules();
+        return;
+      }
 
-    // Service workers can be restarting while a content script is active.
-    // Persist the rule locally so a transient messaging failure does not lose it.
-    if (chrome.runtime.lastError) {
-      saveBlockRuleLocally(rule);
-    } else if (response && response.message) {
-      showSuccessMessage(response.message);
-    }
-  });
+      // Service workers can be restarting while a content script is active.
+      // Persist the rule locally so a transient messaging failure does not lose it.
+      if (chrome.runtime.lastError) {
+        saveBlockRuleLocally(rule);
+      } else if (response && response.message) {
+        showSuccessMessage(response.message);
+      }
+    });
+  } catch (e) {
+    // 扩展刚被重新加载/停用时，sendMessage 会同步抛出 "Extension context invalidated."
+    // 降级为本地保存；若 storage 也不可用，saveBlockRuleLocally 会安全退出。
+    saveBlockRuleLocally(rule);
+  }
   
   stopSelectMode();
 }
@@ -168,6 +209,10 @@ function getSelector(element) {
 }
 
 function saveBlockRuleLocally(rule) {
+  if (!isExtensionContextAlive()) {
+    teardownStaleScript();
+    return;
+  }
   chrome.storage.local.get(['blockedElements'], (result) => {
     const blockedElements = result.blockedElements || [];
     const exists = blockedElements.some(item =>
@@ -191,6 +236,10 @@ function saveBlockRuleLocally(rule) {
 }
 
 function applyBlockRules() {
+  if (!isExtensionContextAlive()) {
+    teardownStaleScript();
+    return;
+  }
   chrome.storage.local.get(['blockedElements'], (result) => {
     const blockedElements = result.blockedElements || [];
     const currentDomain = window.location.hostname.replace(/^www\./, '');
@@ -313,6 +362,7 @@ function showSuccessMessage(message) {
 }
 
 // 页面加载时应用已有的屏蔽规则
+console.log(`[TBlock] content script v${chrome.runtime.getManifest().version} loaded`);
 if (document.readyState === 'loading') {
   document.addEventListener('DOMContentLoaded', () => {
     applyBlockRules();
